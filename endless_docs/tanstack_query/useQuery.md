@@ -448,3 +448,337 @@ const { data, dataUpdatedAt } = useQuery({
 - 별도로 설정하지 않으면, 컴포넌트에 접근한 값이 변경되었을 때 리랜더링이 발생한다 (기본 동작). 즉 위 예시에서 notifyOnChangeProps에 설정 값을 주지 않았다면, data, dataUpdatedAt 중 어느 하나가 변경되면 리랜더링이 발생한다.
 - "all"로 설정할 경우 쿼리의 어떤 프로퍼티가 변경되든 컴포넌트가 리랜더링된다.
 - 참고: 기본 동작은 [Object.defineProperty()](https://github.com/TanStack/query/pull/1578/files#diff-93f379800fc8abf895eba249b2e2371eda98740aa40fc9f284a8088d190f46c3R506-R514)를 활용한다.
+
+> notifyOnChangeProps는 어떤 상황에서 사용하면 좋을까?
+
+1. **데이터가 변경되었을 때만 리랜더링이 필요한 경우** <br/>
+   : 만약 컴포넌트가 쿼리로부터 반환된 데이터에만 의존하고 있고, 로딩 상태나 에러 상태의 변화에는 반응할 필요가 없다면, ["data"]만 지정하여 데이터가 실제로 변경될 때만 리랜더링되도록 할 수 있다.
+2. **에러 핸들링에 집중해야할 경우** <br/>
+   : 특정 쿼리가 실패했을 때 사용자에게 피드백을 제공하는 UI를 구현하는 경우, ["error"]를 지정하여 에러 상태의 변경에만 반응할 수 있다. 이는 데이터 로딩 중이거나 데이터가 성공적으로 로드된 경우에는 컴포넌트를 리랜더링하지 않음을 의미한다.
+3. **로딩 상태의 변경을 기반으로 UI를 조정해야 할 경우** <br/>
+   : 로딩 인디케이터나 로딩 메시지를 표시하고자 할 때, ["isLoading"]을 지정하여 로딩 상태의 변경에만 컴포넌트가 반응하도록 설정할 수 있다. 이렇게 하면 에러 상태의 변화는 무시하고 로딩 상태의 변화에만 집중할 수 있다.
+4. **성능 최적화가 필요한 경우** <br/>
+   대규모 데이터를 다루는 복잡한 대시보드나 애플리케이션에서는 불필요한 리랜더링을 최소화하는 것이 중요하다. notifyOnChangeProps를 활용하여 실제로 필요한 상태 변화에만 반응하도록 설정함으로써, 성능을 개선하고 사용자 경험을 향상시킬 수 있다.
+
+```javascript
+const { data, isLoading, error } = useQuery({
+  queryKey: ["some-data"],
+  queryFn: fetchData,
+  notifyOnChangeProps: ["data", "error"], // 데이터 또는 에러 상태의 변화에만 반응
+});
+```
+
+### Parallel
+
+```javascript
+const { data: superHeroes } = useQuery({
+  queryKey: ["super-heroes"],
+  queryFn: getAllSuperHero,
+});
+const { data: superHeroes } = useQuery({
+  queryKey: ["friends"],
+  queryFn: getFriends,
+});
+```
+
+- 몇 가지 상황을 제외하면 쿼리 여러 개가 선언된 일반적인 상황일 때, 쿼리 함수들은 그냥 병렬로 요청돼서 처리된다.
+- 이러한 특징은 쿼리 처리의 동시성을 극대화 시킨다.
+
+```javascript
+const queryResults = useQueries({
+  queries: [
+    {
+      queryKey: ["super-hero", 1],
+      queryFn: () => getSuperHero(1),
+      staleTime: Infinity, // 다음과 같이 option 추가 가능!
+    },
+    {
+      queryKey: ["super-hero", 2],
+      queryFn: () => getSuperHero(2),
+      staleTime: 0,
+    },
+    // ...
+  ],
+});
+```
+
+하지만 여러개의 쿼리를 동시에 수행해야 하는 경우, 렌더링이 거듭되어 사이사이에 계속 쿼리가 수행되어야 한다면 쿼리를 수행하는 로직이 hook 규칙에 어긋날 수도 있다. 이럴 때는 **useQuries**를 사용한다.
+
+- useQuries 훅은 모든 쿼리 결과가 포함된 배열을 반환한다. 반환되는 순서는 쿼리가 입력된 순서와 동일하다
+
+### Queries Combine
+
+- **useQuries** 훅이 반환한 모든 쿼리 결과가 포한된 배열을 단일 값으로 결합하려면 combine 옵션을 사용할 수 있다.
+
+```javascript
+const ids = [1,2,3]
+const combinedQueries = useQueries({
+  queries: ids.map(id => (
+    { queryKey: ['post', id], queryFn: () => fetchPost(id) },
+  )),
+  combine: (results) => {
+    return ({
+      data: results.map(result => result.data),
+      pending: results.some(result => result.isPending),
+    })
+  }
+})
+```
+
+- combinedQueries는 data와 pending 프로퍼티를 갖는다.
+- 참고로 결합하면 쿼리 결과의 나머지 다른 프로퍼티들은 손실된다.
+
+## Dependent Queries
+
+: **Dependent Queries(종속 쿼리)** 는 어떤 A라는 쿼리가 있는데 이 A 쿼리를 실행하기 전에 사전에 완료되어야하는 B 쿼리가 있을 경우, B 쿼리에 의존하는 A 쿼리를 종속 쿼리라고 한다.
+
+- react-query에서는 enabled 옵션을 통해 종속 쿼리를 쉽게 구현할 수 있다.
+
+```javascript
+// 사전에 완료되어야할 쿼리
+const { data: user } = useQuery({
+  queryKey: ["user", email],
+  queryFn: () => getUserByEmail(email),
+});
+
+const channelId = user?.data.channelId;
+
+// user 쿼리에 종속 쿼리
+const { data: courses } = useQuery({
+  queryKey: ["courses", channelId],
+  queryFn: () => getCoursesByChannelId(channelId),
+  enabled: !!channelId,
+});
+```
+
+## useQueryClient
+
+- useQueryClient는 QueryClient 인스턴스를 반환한다.
+- QueryClient는 캐시와 상호작용한다.
+- QueryClient는 다음 문서에 자세하게 나와있다.
+  - [QueryClient](https://github.com/ssi02014/react-query-tutorial/tree/master/document/queryClient.md)
+
+```javascript
+import { useQueryClient } from "@tanstack/react-query";
+
+const queryClient = useQueryClient();
+```
+
+## QueryClient
+
+- react-query에서 QueryClient의 인스턴스를 사용하여 캐시와 상호작용 할 수 있으며, 기본적인 사용법은 다음과 같다.
+
+```javascript
+// v4
+import { QueryClient } from "@tanstack/react-query";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: Infinity,
+    },
+  },
+});
+
+// v3
+import { QueryClient } from "react-query";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: Infinity,
+    },
+  },
+});
+```
+
+### Option
+
+- queryCache?: QueryCache
+
+  - Optional
+  - 해당 queryClient 연결된 query 캐시이다.
+  - 잘 쓰이지 않음
+
+- mutationCache?: MutationCache
+
+  - Optional
+  - 해당 queryClient와 연결된 mutation cache이다.
+  - 잘 쓰이지 않음
+
+- logger?: Logger
+
+  - v4
+  - Optional
+  - 해당 queryClient의 디버깅 정보, 경고 및 오류를 기록하는 데 사용하는 로거이다.
+    설정하지 않으면 console 기본 로거이다.
+
+- defaultOptions?: DefaultOptions
+  - Optional
+  - 모든 query 및 mutation에 대한 기본값을 정의한다.
+  - 자주 쓰임!
+
+### 자주 쓰이는 QueryClient 옵션
+
+### 1. useQueryClient
+
+- 일반적으로 QueryClient의 옵션들을 이용할 때는 현재 QueryClient의 인스턴스를 반환하는 useQueryClient Hook을 사용한다.
+
+```javascript
+// v3
+import { useQueryClient } from "react-query";
+
+const queryClient = useQueryClient();
+
+// v4
+import { useQueryClient } from "@tanstack/react-query";
+
+const queryClient = useQueryClient({ context });
+// context?: React.Context<QueryClient | undefined>
+// 사용자 정의 React Query Context를 사용할 때 해당 옵션 사용함
+```
+
+### 2. getQueryData
+
+- queryClient.getQueryData는 기존 쿼리의 캐시된 데이터를 가져오는 데 사용할 수 있는 동기 함수이다. 쿼리가 존재하지 않으면 undefined를 반환한다.
+
+```javascript
+// v3
+const data = queryClient.getQueryData(queryKey);
+
+// v4
+const data = queryClient.getQueryData({ queryKey });
+```
+
+- 실제 예제
+
+```javascript
+const queryData = queryClient.getQueryData(["super-heroes"]);
+```
+
+- Type
+
+```javascript
+getQueryData<TQueryFnData = unknown>(queryKey: QueryKey, filters?: QueryFilters): TQueryFnData | undefined;
+```
+
+### 3. getQueriesData
+
+- queryClient.getQueriesData는 여러 쿼리의 데이터를 가져오는데 사용할 수 있는 동기 함수이다. queryKey 또는 filters와 일치하는 쿼리만 반환한다. 일치하는 쿼리가 없으면 빈배열을 반환한다.
+- [Query filters](https://tanstack.com/query/v4/docs/guides/filters#query-filters)
+
+```javascript
+// v3/v4
+const data = queryClient.getQueriesData(queryKey | filters);
+```
+
+- v4에서는 v3 형태도 지원한다.
+
+```javascript
+// type
+getQueriesData<TQueryFnData = unknown>(queryKey: QueryKey): [QueryKey, TQueryFnData | undefined][];
+getQueriesData<TQueryFnData = unknown>(filters: QueryFilters): [QueryKey, TQueryFnData | undefined][];
+```
+
+### 4. setQueryData
+
+- queryClient.setQueryData는 캐싱된 쿼리 데이터를 즉시 업데이트하는데 사용할 수 있는 동기 함수다.
+- invalidateQueries와 더불어 캐시 데이터를 최신화할 때 많이 사용한다.
+
+```javascript
+// v3/v4
+queryClient.setQueryData(["super-hero"], (oldData) => {
+  return {
+    ...oldData,
+    data: [...oldData.data, data.data],
+  };
+});
+```
+
+- v4에서는 v3 형태도 지원한다.
+
+```javascript
+// type
+setQueryData<TQueryFnData>(queryKey: QueryKey, updater: Updater<TQueryFnData | undefined, TQueryFnData | undefined>, options?: SetDataOptions): TQueryFnData | undefined;
+```
+
+### 5. setQueriesData
+
+- queryClient.setQueriesData는 필터 기능을 사용하거나 쿼리 키를 부분적으로 일치시켜 여러 쿼리의 캐시된 데이터를 즉시 업데이트하는데 사용할 수 있는 동기 함수이다.
+- 전달된 queryKey 또는 filters와 일치하는 쿼리만 업데이트되며, 새 캐시 항목이 생성되지 않는다.
+
+```javascript
+// v3/v4
+queryClient.setQueriesData(["super-hero"], (oldData) => {
+  return {
+    ...oldData,
+    data: [...oldData.data, data.data],
+  };
+});
+```
+
+- v4에서는 v3 형태도 지원한다.
+
+```javascript
+setQueriesData<TQueryFnData>(queryKey: QueryKey, updater: Updater<TQueryFnData | undefined, TQueryFnData | undefined>, options?: SetDataOptions): [QueryKey, TQueryFnData | undefined][];
+setQueriesData<TQueryFnData>(filters: QueryFilters, updater: Updater<TQueryFnData | undefined, TQueryFnData | undefined>, options?: SetDataOptions): [QueryKey, TQueryFnData | undefined][];
+```
+
+### 6. invalidateQueries
+
+- queryClient.invalidateQueries는 setQueryData와 더불어 캐시 데이터를 최신화할 때 많이 사용하는 함수이다.
+- 단일 또는 여러 쿼리 데이터를 무효화하고([예제 링크](https://github.com/ssi02014/react-query-tutorial#%EC%BF%BC%EB%A6%AC-%EB%AC%B4%ED%9A%A8%ED%99%94)), 다시 가져오는데 많이 사용한다.
+- 기본적으로 일치하는 모든 쿼리는 즉시 유효하지 않은 것으로 표시되고, 활성 쿼리는 백그라운드에서 다시 가져온다.
+- 만약, 활성 쿼리를 다시 가져오는 것을 원하지 않으면 v3에서는 refetchActive: false, v4에서는 refetchType: 'none'을 사용할 수 있다.
+- 반대로 비 활성화 쿼리를 다시 가져오기를 원한다면 v3에서는 refetchInactive: true, v4에서는 refetchType: 'all'을 사용할 수 있다.
+- 참고로 query 옵션으로 enabled: false 옵션을 주면 queryClient가 쿼리를 가시 가져오는 방법들 중 invaildateQueries와 refetchQueries를 무시한다.
+
+```javascript
+// v3
+await queryClient.invalidateQueries(
+  ["super-heroes"],
+  {
+    exact,
+    refetchActive: true,
+    refetchInactive: false,
+  },
+  { throwOnError, cancelRefetch }
+);
+
+// v4
+await queryClient.invalidateQueries(
+  {
+    queryKey: ["super-heroes"],
+    exact,
+    refetchType: "active",
+  },
+  { throwOnError, cancelRefetch }
+);
+
+// exact옵션을 줬기 때문에 쿼리 키와 정확히 일치하는 쿼리만을 무효화하고 다시 가져온다.
+```
+
+- 추가적으로 invalidateQueries가 무효화하는 쿼리 범위는 기본적으로 상위 -> 하위로 전파된다. 이게 무슨 말이냐면 아래와 같이 ['super-heros'] 쿼리를 무효화하게 되면 아래 하위 쿼리들도 모두 초기화된다.
+
+```javascript
+queryClient.invalidateQueries({
+  queryKey: ["super-heroes"],
+});
+
+["super-heros"],
+["super-heros", 'superman'],
+["super-heros", { id: 1} ],
+```
+
+- 위와 같이 ['super-heros'] 쿼리를 무효화하게 되면 아래 하위 쿼리들도 모두 초기화된다.
+- 하지만 해당 key만 무효화 시키려면 첫 번째 예제 코드에서도 언급했듯이 exact 옵션을 주면된다.
+
+- v4에서는 v3 형태도 지원한다.
+
+```javascript
+// type
+invalidateQueries<TPageData = unknown>(filters?: InvalidateQueryFilters<TPageData>, options?: InvalidateOptions): Promise<void>;
+invalidateQueries<TPageData = unknown>(queryKey?: QueryKey, filters?: InvalidateQueryFilters<TPageData>, options?: InvalidateOptions): Promise<void>;
+```
+
+### 7. refetchQueries
