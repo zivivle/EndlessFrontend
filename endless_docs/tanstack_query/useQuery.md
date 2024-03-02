@@ -782,3 +782,5 @@ invalidateQueries<TPageData = unknown>(queryKey?: QueryKey, filters?: Invalidate
 ```
 
 ### 7. refetchQueries
+
+[정리 여기부터](https://github.com/ssi02014/react-query-tutorial/blob/main/document/queryClient.md#refetchqueries)
