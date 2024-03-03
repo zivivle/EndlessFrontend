@@ -1,8 +1,17 @@
 {
+  "author": "zivivle",
+  "description": "Design System with Storybook",
   "name": "storybook01",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "license": "MIT",
+  "file": [
+    "index.css",
+    "src/components/",
+    "src/styles/",
+    "public/icons"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

@@ -1,4 +1,6 @@
 import type { Preview } from "@storybook/react";
+import "@fontsource-variable/open-sans";
+import "../src/index.css";
 
 const preview: Preview = {
   parameters: {
