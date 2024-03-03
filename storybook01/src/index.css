@@ -3,5 +3,11 @@
 @tailwind utilities;
 
 body {
-  font-family: "Open Sans Variable", sans-serif;
+    font-family: "Open Sans Variable", sans-serif;
+}
+
+@layer components {
+    .relative > p {
+        @apply absolute;
+    }
 }
