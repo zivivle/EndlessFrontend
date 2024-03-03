@@ -9,7 +9,7 @@ function App() {
       onClick={() => {
         setCount(count + 1);
       }}
-      className="text-3xl font-bold underline"
+      className="text-3xl text-secondary font-bold underline"
     >
       Hello world! {count}
     </h1>
