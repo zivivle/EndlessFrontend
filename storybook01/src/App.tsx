@@ -10,6 +10,12 @@ function App() {
     const [isError, setIsError] = useState(false);
     return (
         <div className="w-[400px]">
+            {/* 
+              현재 상태에서 CLS를 초래할 수 있는 이유 
+              갑자기 레이아웃이 변경되면 사용자 경험에 좋지않다.
+              심지어 SEO에도 영향을 끼친다
+              그러므로 사용자 경험을 위해서 CLS를 최대한 줄여야한다.
+           */}
             <Label htmlFor="username">사용자 이름</Label>
             <DefaultTextField
                 errorMessage="입력값을 확인해주세요."
