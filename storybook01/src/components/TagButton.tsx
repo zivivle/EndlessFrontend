@@ -9,6 +9,7 @@ export const TagButton = ({ children, isChecked, onClick }: ITagButtonProps) => 
     return (
         <button
             className={` 
+                border
                 rounded-tag-button 
                 px-[10px] 
                 h-[33px] 
