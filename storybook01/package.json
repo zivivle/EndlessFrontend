@@ -1,5 +1,7 @@
 {
-  "author": "zivivle",
+  "author": {
+    "name": "zivivle"
+  },
   "description": "Design System with Storybook",
   "name": "storybook01",
   "private": true,
@@ -18,7 +20,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "chromatic": "npx chromatic --project-token=chpt_07e2c74af80b652"
   },
   "dependencies": {
     "@fontsource-variable/open-sans": "^5.0.25",
@@ -41,6 +44,7 @@
     "@typescript-eslint/parser": "^7.1.0",
     "@vitejs/plugin-react-swc": "^3.5.0",
     "autoprefixer": "^10.4.18",
+    "chromatic": "^11.0.7",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-import-resolver-typescript": "^3.6.1",
